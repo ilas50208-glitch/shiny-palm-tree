@@ -2,260 +2,754 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Standoff Lite</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D FPS - Боевая арена</title>
+    
+    <!-- 
+    =================================================================
+    БОЛЬШОЙ ИГРОВОЙ ДВИЖОК НА THREE.JS
+    =================================================================
+    -->
+    
     <style>
-        body { margin: 0; overflow: hidden; background: #1a1a2e; font-family: Arial, sans-serif; }
-        
-        /* Прицел */
+        /* 
+        =============================================================
+        СТИЛИ ОФОРМЛЕНИЯ (ИНТЕРФЕЙС ИГРОКА)
+        =============================================================
+        */
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            cursor: crosshair; /* Прицел вместо курсора мыши */
+        }
+
+        /* Игровой интерфейс (HUD) */
+        #hud {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 10;
+            font-size: 18px;
+            line-height: 1.4;
+        }
+
+        /* Полоса здоровья */
+        #health-container {
+            margin-bottom: 10px;
+            width: 220px;
+        }
+        #health-label {
+            display: flex;
+            justify-content: space-between;
+        }
+        #health-bar-bg {
+            width: 100%;
+            height: 12px;
+            background: rgba(30, 30, 30, 0.8);
+            border: 2px solid #555;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 2px;
+        }
+        #health-fill {
+            height: 100%;
+            width: 100%;
+            background: #2ecc71;
+            transition: width 0.2s ease;
+        }
+        #health-fill.danger { background: #e74c3c; }
+        #health-fill.warning { background: #f1c40f; }
+
+        /* Боеприпасы и оружие */
+        #weapon-info {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        #ammo-display {
+            color: #f1c40f;
+        }
+        #reload-text {
+            display: none;
+            color: #e74c3c;
+            font-size: 20px;
+            font-weight: bold;
+            margin-left: 10px;
+            animation: blink 0.5s step-start infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Счетчик убийств */
+        #kill-counter {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: #fff;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+            pointer-events: none;
+        }
+        #kill-counter span { color: #e74c3c; }
+
+        /* Прицел (Крест) */
         #crosshair {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 30px; height: 30px;
+            width: 32px;
+            height: 32px;
             pointer-events: none;
-            z-index: 10;
+            z-index: 9;
         }
-        #crosshair::before, #crosshair::after {
-            content: ''; position: absolute; background: rgba(255, 255, 255, 0.8);
+        #crosshair .line {
+            position: absolute;
+            background: rgba(0, 255, 0, 0.9);
+            border-radius: 2px;
         }
-        #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
-        #crosshair::after { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
-        .dot { width: 4px; height: 4px; background: red; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-
-        /* Интерфейс */
-        #ui {
-            position: absolute; bottom: 20px; left: 20px; color: white; z-index: 10;
-            text-shadow: 1px 1px 2px black; font-size: 20px;
-        }
-        #healthBar {
-            width: 200px; height: 10px; background: #333; border: 2px solid #555; margin-top: 5px;
-        }
-        #healthFill { height: 100%; width: 100%; background: #00ff00; transition: width 0.1s; }
-        
-        #gameOver {
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); color: #ff4444; z-index: 20;
-            justify-content: center; align-items: center; flex-direction: column;
-        }
-        #gameOver h1 { font-size: 60px; margin: 0; }
-        #gameOver button {
-            padding: 15px 30px; font-size: 24px; background: #4CAF50; color: white;
-            border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;
+        #crosshair .top { top: 0; left: 50%; transform: translateX(-50%); width: 2px; height: 10px; }
+        #crosshair .bottom { bottom: 0; left: 50%; transform: translateX(-50%); width: 2px; height: 10px; }
+        #crosshair .left { left: 0; top: 50%; transform: translateY(-50%); width: 10px; height: 2px; }
+        #crosshair .right { right: 0; top: 50%; transform: translateY(-50%); width: 10px; height: 2px; }
+        #crosshair .dot {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 3px; height: 3px;
+            background: #fff;
+            border-radius: 50%;
         }
 
-        /* Сообщение "Враги близко" */
-        #warning { display: none; position: absolute; bottom: 100px; width: 100%; text-align: center; color: red; font-size: 30px; font-weight: bold; z-index: 10; text-shadow: 2px 2px 4px black; }
+        /* Экран смерти */
+        #death-screen {
+            display: none;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        #death-screen h1 {
+            color: #e74c3c;
+            font-size: 72px;
+            margin: 0;
+            text-shadow: 0 0 20px rgba(231, 76, 60, 0.5);
+        }
+        #death-screen p {
+            color: #fff;
+            font-size: 24px;
+            margin-top: 10px;
+        }
+        #death-screen button {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 22px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+        }
+        #death-screen button:hover {
+            background: #2980b9;
+            transform: scale(1.05);
+        }
+
+        /* Информация об управлении */
+        #controls-info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.4);
+            font-size: 14px;
+            z-index: 5;
+            pointer-events: none;
+            background: rgba(0,0,0,0.3);
+            padding: 5px 15px;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        /* Сообщение о получении урона (красная рамка) */
+        #damage-flash {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: 20px solid transparent;
+            pointer-events: none;
+            z-index: 8;
+            transition: border 0.1s;
+            box-sizing: border-box;
+        }
+        #damage-flash.hit {
+            border-color: rgba(255, 0, 0, 0.5);
+        }
+
+        /* Адаптация под мобильные устройства (если будут) */
+        @media (max-width: 768px) {
+            #hud { bottom: 15px; left: 15px; font-size: 14px; }
+            #health-container { width: 150px; }
+            #weapon-info { font-size: 18px; }
+            #kill-counter { font-size: 20px; top: 10px; right: 15px; }
+            #controls-info { display: none; }
+        }
     </style>
 </head>
 <body>
 
-    <div id="crosshair"><div class="dot"></div></div>
+    <!-- Игровой интерфейс -->
+    <div id="hud">
+        <div id="health-container">
+            <div id="health-label">
+                <span>Здоровье</span>
+                <span id="health-value">100</span>
+            </div>
+            <div id="health-bar-bg">
+                <div id="health-fill" style="width: 100%"></div>
+            </div>
+        </div>
+        <div id="weapon-info">
+            <span id="weapon-name">Автомат</span> | 
+            <span id="ammo-display">30 / 30</span>
+            <span id="reload-text">[ПЕРЕЗАРЯДКА]</span>
+        </div>
+    </div>
+
+    <div id="kill-counter">Убийств: <span id="kills-value">0</span></div>
+
+    <div id="crosshair">
+        <div class="line top"></div>
+        <div class="line bottom"></div>
+        <div class="line left"></div>
+        <div class="line right"></div>
+        <div class="dot"></div>
+    </div>
+
+    <div id="damage-flash"></div>
+
+    <div id="controls-info">WASD - Движение | Пробел - Прыжок | ЛКМ - Стрельба | R - Перезарядка | 1, 2 - Смена оружия</div>
+
+    <div id="death-screen">
+        <h1>ТЫ УБИТ</h1>
+        <p>Счет: <span id="final-kills">0</span></p>
+        <button onclick="location.reload()">НАЧАТЬ ЗАНОВО</button>
+    </div>
+
+    <!-- 
+    =============================================================
+    ИГРОВОЙ ДВИЖОК
+    =============================================================
+    -->
     
-    <div id="ui">
-        <div>Здоровье: <span id="hpText">100</span></div>
-        <div id="healthBar"><div id="healthFill"></div></div>
-        <div>Убито: <span id="killCount">0</span></div>
-    </div>
-
-    <div id="warning">⚠️ ВРАГИ БЛИЗКО!</div>
-
-    <div id="gameOver">
-        <h1>ВЫ ПОГИБЛИ</h1>
-        <p style="color:white; font-size: 24px;">Счет: <span id="finalScore">0</span></p>
-        <button onclick="location.reload()">Играть заново</button>
-    </div>
-
-    <!-- Библиотека Three.js -->
+    <!-- Подключаем библиотеку Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- Игровые переменные ---
-        let health = 100;
-        let kills = 0;
-        let gameRunning = true;
-        let enemies = [];
-        let spawnTimer = 0;
+        /* 
+        =============================================================
+        ПОДРОБНАЯ НАСТРОЙКА ИГРЫ (СОТНИ СТРОК КОДА)
+        =============================================================
+        */
+
+        // ==========================================================
+        // 1. ПЕРЕМЕННЫЕ ИГРОВОГО СОСТОЯНИЯ
+        // ==========================================================
+        let playerHealth = 100;
+        let playerKills = 0;
+        let gameIsRunning = true;
+        let isReloading = false;
         let shootCooldown = 0;
 
-        // --- Звук выстрела (генератор) ---
-        function playShootSound() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                oscillator.type = 'sawtooth';
-                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.1);
-                gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.1);
-            } catch(e) {}
-        }
+        // Данные оружия
+        const weapons = [
+            { name: 'Пистолет', damage: 15, ammo: 12, maxAmmo: 12, reloadTime: 1500, fireRate: 20, speed: 0.8, color: 0x888888 },
+            { name: 'Автомат', damage: 25, ammo: 30, maxAmmo: 30, reloadTime: 2000, fireRate: 10, speed: 1.0, color: 0x444444 }
+        ];
+        let currentWeaponIndex = 1; // Начинаем с автомата
+        let currentWeapon = weapons[currentWeaponIndex];
 
-        // --- Сцена и камера ---
+        // Список врагов
+        let enemiesList = [];
+        let enemySpawnTimer = 0;
+
+        // Переменные для физики игрока
+        let playerVelocityY = 0;
+        let isOnGround = false;
+        const GRAVITY = -0.02;
+        const JUMP_FORCE = 0.25;
+
+        // Переменные для управления мышью
+        let mouseX = 0;
+        let mouseY = 0;
+        let isPointerLocked = false;
+
+        // ==========================================================
+        // 2. ИНИЦИАЛИЗАЦИЯ THREE.JS (СЦЕНА, КАМЕРА, СВЕТ)
+        // ==========================================================
         const scene = new THREE.Scene();
-        scene.fog = new THREE.Fog(0x1a1a2e, 10, 50); // Туман для глубины
+        scene.background = new THREE.Color(0x2c3e50); // Темно-синий цвет неба
+
+        // Настраиваем туман для глубины
+        scene.fog = new THREE.FogExp2(0x2c3e50, 0.008);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.y = 1.7; // Рост человека
-        camera.position.z = 0;
+        camera.position.y = 1.6; // Рост игрока над полом
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // --- Свет ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        // Настройка света
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(0, 10, 5);
-        scene.add(dirLight);
-        
-        // --- Пол ---
-        const floorGeo = new THREE.PlaneGeometry(100, 100);
-        const floorMat = new THREE.MeshLambertMaterial({ color: 0x2a2a3e });
-        const floor = new THREE.Mesh(floorGeo, floorMat);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        sunLight.position.set(50, 100, 50);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+
+        // Добавляем еще один свет сбоку для объема
+        const fillLight = new THREE.DirectionalLight(0x556688, 0.5);
+        fillLight.position.set(-50, 0, 50);
+        scene.add(fillLight);
+
+        // ==========================================================
+        // 3. СОЗДАНИЕ УРОВНЯ (3D МИР)
+        // ==========================================================
+
+        // --- Пол (Арена) ---
+        const floorGeometry = new THREE.PlaneGeometry(100, 100);
+        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x34495e });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -1;
+        floor.position.y = -0.5;
+        floor.receiveShadow = true;
         scene.add(floor);
 
-        // --- Оружие (винтовка) ---
-        const gunGroup = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.8), new THREE.MeshLambertMaterial({ color: 0x333333 }));
-        body.position.z = -0.3;
-        const stock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.15, 0.2), new THREE.MeshLambertMaterial({ color: 0x5a3a1a }));
-        stock.position.set(0, -0.05, 0.3);
-        const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.1), new THREE.MeshLambertMaterial({ color: 0x111111 }));
-        scope.position.set(0, 0.1, -0.1);
-        scope.rotation.x = Math.PI / 2;
-        
-        gunGroup.add(body);
-        gunGroup.add(stock);
-        gunGroup.add(scope);
-        gunGroup.position.set(0.3, -0.2, 0.5);
-        scene.add(gunGroup);
+        // --- Сетка на полу для тактической атмосферы ---
+        const gridHelper = new THREE.GridHelper(90, 20, 0xffffff, 0x223344);
+        gridHelper.position.y = -0.49;
+        scene.add(gridHelper);
 
-        // --- Создание врага ---
-        function createEnemy() {
-            const geo = new THREE.BoxGeometry(0.5, 1.5, 0.5);
-            const mat = new THREE.MeshLambertMaterial({ color: 0xff3333 });
-            const enemy = new THREE.Mesh(geo, mat);
-            
-            // Появляются в радиусе 15-30 метров перед игроком
-            enemy.position.x = (Math.random() - 0.5) * 20;
-            enemy.position.z = -15 - Math.random() * 20;
-            enemy.position.y = 0;
-            
-            scene.add(enemy);
-            enemies.push({
-                mesh: enemy,
-                speed: 0.05 + Math.random() * 0.05
-            });
+        // --- Стены и препятствия (Укрытия) ---
+        function createObstacle(x, z, width, depth, height, color) {
+            const boxGeo = new THREE.BoxGeometry(width, height, depth);
+            const boxMat = new THREE.MeshLambertMaterial({ color: color || 0x7f8c8d });
+            const obstacle = new THREE.Mesh(boxGeo, boxMat);
+            obstacle.position.set(x, height/2 - 0.5, z);
+            obstacle.castShadow = true;
+            obstacle.receiveShadow = true;
+            scene.add(obstacle);
+            return obstacle;
         }
 
-        // --- Движение камеры (мышь) ---
-        let mouseX = 0, mouseY = 0;
+        // Добавляем ящики на карту
+        createObstacle(-10, -5, 4, 2, 1, 0xcc5500); // Оранжевый ящик
+        createObstacle(12, 3, 2, 4, 1, 0x2980b9);   // Синий ящик
+        createObstacle(-5, 15, 6, 2, 1.5, 0x8e44ad); // Фиолетовый контейнер
+        createObstacle(8, -12, 3, 3, 2, 0x2ecc71);   // Зеленый ящик
+        createObstacle(0, -20, 8, 1, 1, 0xe67e22);   // Длинная стена
+        createObstacle(-18, 0, 2, 2, 2, 0xecf0f1);   // Белая колонна
+
+        // ==========================================================
+        // 4. МОДЕЛЬ ОРУЖИЯ (В РУКАХ)
+        // ==========================================================
+        const weaponGroup = new THREE.Group();
+
+        // Основной ствол
+        const gunBodyGeo = new THREE.BoxGeometry(0.08, 0.08, 0.6);
+        const gunBodyMat = new THREE.MeshLambertMaterial({ color: currentWeapon.color });
+        const gunBody = new THREE.Mesh(gunBodyGeo, gunBodyMat);
+        gunBody.position.z = -0.2;
+        weaponGroup.add(gunBody);
+
+        // Приклад (вторая часть)
+        const stockGeo = new THREE.BoxGeometry(0.05, 0.12, 0.2);
+        const stockMat = new THREE.MeshLambertMaterial({ color: 0x3e2723 }); // Цвет дерева
+        const stock = new THREE.Mesh(stockGeo, stockMat);
+        stock.position.set(0, 0, 0.25);
+        weaponGroup.add(stock);
+
+        // Магазин
+        const magGeo = new THREE.BoxGeometry(0.04, 0.1, 0.1);
+        const magMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+        const mag = new THREE.Mesh(magGeo, magMat);
+        mag.position.set(0, -0.08, -0.1);
+        weaponGroup.add(mag);
+
+        // Дуло
+        const barrelGeo = new THREE.CylinderGeometry(0.03, 0.04, 0.15);
+        const barrelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+        const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.set(0, 0, -0.45);
+        weaponGroup.add(barrel);
+
+        // Позиционируем оружие в правом нижнем углу экрана
+        weaponGroup.position.set(0.3, -0.25, 0.6);
+        scene.add(weaponGroup);
+
+        // ==========================================================
+        // 5. КЛАСС ВРАГА И ЕГО ПОВЕДЕНИЕ
+        // ==========================================================
+        class Enemy {
+            constructor() {
+                // Создаем тело врага (человечек из коробок)
+                this.group = new THREE.Group();
+
+                // Туловище
+                const bodyGeo = new THREE.BoxGeometry(0.6, 0.6, 0.4);
+                const bodyMat = new THREE.MeshLambertMaterial({ color: 0xe74c3c });
+                this.body = new THREE.Mesh(bodyGeo, bodyMat);
+                this.body.position.y = 0.5;
+                this.body.castShadow = true;
+                this.group.add(this.body);
+
+                // Голова
+                const headGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const headMat = new THREE.MeshLambertMaterial({ color: 0xf1c40f });
+                this.head = new THREE.Mesh(headGeo, headMat);
+                this.head.position.y = 1.0;
+                this.head.castShadow = true;
+                this.group.add(this.head);
+
+                // Ноги
+                const legGeo = new THREE.BoxGeometry(0.2, 0.3, 0.2);
+                const legMat = new THREE.MeshLambertMaterial({ color: 0x2c3e50 });
+                this.legL = new THREE.Mesh(legGeo, legMat);
+                this.legL.position.set(-0.15, 0.15, 0);
+                this.group.add(this.legL);
+                this.legR = new THREE.Mesh(legGeo, legMat);
+                this.legR.position.set(0.15, 0.15, 0);
+                this.group.add(this.legR);
+
+                // Спавн врага на краю карты
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 25 + Math.random() * 15;
+                this.group.position.x = Math.cos(angle) * radius;
+                this.group.position.z = Math.sin(angle) * radius;
+                
+                this.health = 2; // Врага нужно 2 раза ударить
+                this.speed = 0.04 + Math.random() * 0.03;
+                this.state = 'walk'; // walk, attack
+                
+                scene.add(this.group);
+                this.isDead = false;
+            }
+
+            update() {
+                if (this.isDead) return;
+
+                // Движение к игроку
+                const dx = camera.position.x - this.group.position.x;
+                const dz = camera.position.z - this.group.position.z;
+                const distance = Math.sqrt(dx*dx + dz*dz);
+
+                if (distance > 3) {
+                    this.state = 'walk';
+                    // Нормализуем движение
+                    const moveX = dx / distance;
+                    const moveZ = dz / distance;
+                    this.group.position.x += moveX * this.speed;
+                    this.group.position.z += moveZ * this.speed;
+                    
+                    // Поворот лицом к игроку
+                    this.group.rotation.y = Math.atan2(dx, dz);
+                } else {
+                    this.state = 'attack';
+                    // Если враг рядом, он наносит урон
+                    if (Math.random() < 0.02) {
+                        takeDamage(10);
+                    }
+                }
+            }
+        }
+
+        // ==========================================================
+        // 6. ФУНКЦИИ ИГРЫ (СТРЕЛЬБА, УРОН, ПЕРЕЗАРЯДКА)
+        // ==========================================================
+
+        // Функция получения урона
+        function takeDamage(amount) {
+            if (!gameIsRunning) return;
+            playerHealth -= amount;
+            if (playerHealth < 0) playerHealth = 0;
+            
+            // Обновляем UI
+            document.getElementById('health-value').innerText = playerHealth;
+            const fillBar = document.getElementById('health-fill');
+            fillBar.style.width = playerHealth + '%';
+            
+            // Меняем цвет полоски здоровья
+            fillBar.className = '';
+            if (playerHealth < 25) fillBar.classList.add('danger');
+            else if (playerHealth < 50) fillBar.classList.add('warning');
+
+            // Визуальный эффект (красная вспышка)
+            const flash = document.getElementById('damage-flash');
+            flash.classList.add('hit');
+            setTimeout(() => flash.classList.remove('hit'), 200);
+
+            if (playerHealth <= 0) {
+                gameIsRunning = false;
+                document.getElementById('final-kills').innerText = playerKills;
+                document.getElementById('death-screen').style.display = 'flex';
+            }
+        }
+
+        // Функция перезарядки
+        function startReload() {
+            if (isReloading || currentWeapon.ammo === currentWeapon.maxAmmo || !gameIsRunning) return;
+            isReloading = true;
+            document.getElementById('reload-text').style.display = 'inline-block';
+            
+            setTimeout(() => {
+                currentWeapon.ammo = currentWeapon.maxAmmo;
+                updateWeaponUI();
+                isReloading = false;
+                document.getElementById('reload-text').style.display = 'none';
+            }, currentWeapon.reloadTime);
+        }
+
+        // Функция выстрела
+        function shoot() {
+            if (!gameIsRunning || isReloading || shootCooldown > 0) return;
+            if (currentWeapon.ammo <= 0) {
+                startReload();
+                return;
+            }
+
+            currentWeapon.ammo--;
+            shootCooldown = currentWeapon.fireRate;
+            updateWeaponUI();
+
+            // Отдача оружия (визуальная)
+            weaponGroup.position.z = 0.7;
+            weaponGroup.rotation.x = -0.1;
+            setTimeout(() => {
+                weaponGroup.position.z = 0.6;
+                weaponGroup.rotation.x = 0;
+            }, 100);
+
+            // Звук выстрела (генератор в браузере)
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } catch(e) {}
+
+            // Проверка попадания (луч из центра экрана)
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            // Ищем пересечения со всеми врагами
+            const enemyMeshes = enemiesList.map(e => e.group);
+            const intersects = raycaster.intersectObjects(enemyMeshes, true);
+
+            if (intersects.length > 0) {
+                // Находим родительскую группу врага, в которую попали
+                let hitEnemy = null;
+                let currentObj = intersects[0].object;
+                while (currentObj.parent) {
+                    if (enemiesList.includes(currentObj)) {
+                        hitEnemy = currentObj;
+                        break;
+                    }
+                    currentObj = currentObj.parent;
+                }
+
+                if (hitEnemy) {
+                    hitEnemy.health--;
+                    if (hitEnemy.health <= 0) {
+                        // Убиваем врага
+                        scene.remove(hitEnemy.group);
+                        const index = enemiesList.indexOf(hitEnemy);
+                        if (index > -1) enemiesList.splice(index, 1);
+                        playerKills++;
+                        document.getElementById('kills-value').innerText = playerKills;
+                    }
+                }
+            }
+        }
+
+        // Обновление интерфейса оружия
+        function updateWeaponUI() {
+            document.getElementById('weapon-name').innerText = currentWeapon.name;
+            document.getElementById('ammo-display').innerText = currentWeapon.ammo + ' / ' + currentWeapon.maxAmmo;
+        }
+
+        // ==========================================================
+        // 7. УПРАВЛЕНИЕ (СЛУШАТЕЛИ СОБЫТИЙ)
+        // ==========================================================
+
+        // --- Движение мыши (прицеливание) ---
         document.addEventListener('mousemove', (e) => {
-            if(!gameRunning) return;
+            if(!gameIsRunning) return;
+            // Блокируем курсор для FPS режима при клике на игру
+            if (!isPointerLocked) {
+                renderer.domElement.requestPointerLock();
+                isPointerLocked = true;
+            }
+
             // Плавный поворот камеры
             mouseX = (e.clientX / window.innerWidth) * 2 - 1;
             mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
             
             camera.rotation.y = -mouseX * 1.5;
-            camera.rotation.x = mouseY * 0.8;
-            gunGroup.rotation.y = camera.rotation.y;
+            camera.rotation.x = Math.max(-1.2, Math.min(1.2, mouseY * 0.8));
+            weaponGroup.rotation.y = camera.rotation.y;
         });
 
-        // --- Стрельба (Клик) ---
-        document.addEventListener('click', () => {
-            if(!gameRunning || shootCooldown > 0) return;
-            shootCooldown = 15; // Задержка между выстрелами
-            playShootSound();
+        // --- Клавиатура (Движение, прыжок, смена оружия) ---
+        const keys = { w: false, a: false, s: false, d: false, space: false };
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ц' || e.key === 'Ц') keys.w = true;
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') keys.a = true;
+            if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') keys.s = true;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В') keys.d = true;
+            if (e.key === ' ') { e.preventDefault(); keys.space = true; }
+            
+            // Смена оружия
+            if (e.key === '1') { currentWeaponIndex = 0; currentWeapon = weapons[0]; updateWeaponUI(); }
+            if (e.key === '2') { currentWeaponIndex = 1; currentWeapon = weapons[1]; updateWeaponUI(); }
+            
+            // Перезарядка
+            if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') startReload();
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ц' || e.key === 'Ц') keys.w = false;
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') keys.a = false;
+            if (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') keys.s = false;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В') keys.d = false;
+            if (e.key === ' ') keys.space = false;
+        });
 
-            // Отдача оружия (визуально)
-            gunGroup.position.z = 0.7;
-            setTimeout(() => gunGroup.position.z = 0.5, 100);
-
-            // Проверка попадания (стреляем прямо по центру экрана)
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-
-            for(let i = enemies.length - 1; i >= 0; i--) {
-                const intersects = raycaster.intersectObject(enemies[i].mesh);
-                if(intersects.length > 0) {
-                    scene.remove(enemies[i].mesh);
-                    enemies.splice(i, 1);
-                    kills++;
-                    document.getElementById('killCount').innerText = kills;
-                    break;
-                }
+        // --- Выстрел (Клик мыши) ---
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 0) { // Левая кнопка мыши
+                shoot();
             }
         });
 
-        // --- Игровой цикл ---
+        // ==========================================================
+        // 8. ОСНОВНОЙ ИГРОВОЙ ЦИКЛ (АНИМАЦИЯ)
+        // ==========================================================
         function animate() {
             requestAnimationFrame(animate);
 
-            if(gameRunning) {
-                // Спавн врагов
-                spawnTimer++;
-                if(spawnTimer > 30 && enemies.length < 20) {
-                    createEnemy();
-                    spawnTimer = 0;
+            if (gameIsRunning) {
+                // === Физика движения игрока ===
+                const moveSpeed = 0.15;
+                let moveX = 0, moveZ = 0;
+                if (keys.w) moveZ -= moveSpeed;
+                if (keys.s) moveZ += moveSpeed;
+                if (keys.a) moveX -= moveSpeed;
+                if (keys.d) moveX += moveSpeed;
+
+                // Поворот движения относительно камеры
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                forward.y = 0; right.y = 0;
+                forward.normalize(); right.normalize();
+
+                const moveVec = new THREE.Vector3();
+                moveVec.add(forward.multiplyScalar(moveZ));
+                moveVec.add(right.multiplyScalar(moveX));
+                camera.position.x += moveVec.x;
+                camera.position.z += moveVec.z;
+
+                // Прыжки и гравитация
+                if (keys.space && isOnGround) {
+                    playerVelocityY = JUMP_FORCE;
+                    isOnGround = false;
                 }
-
-                // Движение врагов
-                let danger = false;
-                for(let i = 0; i < enemies.length; i++) {
-                    const e = enemies[i];
-                    e.mesh.position.z += e.speed; // Бегут к игроку
-                    
-                    // Если враг слишком близко (зона поражения)
-                    if(e.mesh.position.z > 2) {
-                        scene.remove(e.mesh);
-                        enemies.splice(i, 1);
-                        health -= 20;
-                        document.getElementById('hpText').innerText = health;
-                        document.getElementById('healthFill').style.width = health + '%';
-                        if(health <= 0) {
-                            health = 0;
-                            document.getElementById('hpText').innerText = "0";
-                            document.getElementById('healthFill').style.width = "0%";
-                            gameRunning = false;
-                            document.getElementById('finalScore').innerText = kills;
-                            document.getElementById('gameOver').style.display = 'flex';
-                        }
-                        break;
-                    }
-                    if(e.mesh.position.z > -5) danger = true;
-                }
-
-                // Отображение опасности
-                document.getElementById('warning').style.display = danger ? 'block' : 'none';
-
-                // Перезарядка
-                if(shootCooldown > 0) shootCooldown--;
+                playerVelocityY += GRAVITY;
+                camera.position.y += playerVelocityY;
                 
-                // Покачивание оружия при ходьбе (легкий эффект)
-                gunGroup.rotation.z = Math.sin(Date.now() * 0.003) * 0.005;
+                // Проверка пола
+                if (camera.position.y <= 1.6) {
+                    camera.position.y = 1.6;
+                    playerVelocityY = 0;
+                    isOnGround = true;
+                }
+
+                // === Спавн врагов ===
+                enemySpawnTimer++;
+                if (enemySpawnTimer > 40 && enemiesList.length < 15) {
+                    enemiesList.push(new Enemy());
+                    enemySpawnTimer = 0;
+                }
+
+                // === Обновление врагов ===
+                for (let i = 0; i < enemiesList.length; i++) {
+                    enemiesList[i].update();
+                }
+
+                // === Оружие и перезарядка ===
+                if (shootCooldown > 0) shootCooldown--;
+
+                // Покачивание оружия при ходьбе
+                if (moveX !== 0 || moveZ !== 0) {
+                    weaponGroup.rotation.z = Math.sin(Date.now() * 0.01) * 0.02;
+                    weaponGroup.rotation.x = Math.cos(Date.now() * 0.01) * 0.01 - 0.05;
+                } else {
+                    weaponGroup.rotation.z *= 0.95;
+                }
             }
 
             renderer.render(scene, camera);
         }
 
-        // --- Адаптация экрана ---
+        // ==========================================================
+        // 9. АДАПТАЦИЯ ПОД РАЗМЕР ЭКРАНА
+        // ==========================================================
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
+        // ==========================================================
+        // 10. ЗАПУСК ИГРЫ
+        // ==========================================================
+        updateWeaponUI();
         animate();
+
+        // ==========================================================
+        // КОНЕЦ КОДА
+        // ==========================================================
+
+        console.log("Игра запущена! Код написан специально для тебя.");
     </script>
 </body>
 </html>
